@@ -34,6 +34,11 @@ final class RedirectUriPolicy
 
     private function matchesPolicy(string $uri): bool
     {
+        // "$" in the value object's pattern also matches before a trailing newline
+        if (1 === preg_match('/[\x00-\x20\x7f]/', $uri)) {
+            return false;
+        }
+
         $parts = parse_url($uri);
         if (false === $parts || !isset($parts['scheme']) || isset($parts['fragment']) || isset($parts['user']) || isset($parts['pass'])) {
             return false;
@@ -50,6 +55,7 @@ final class RedirectUriPolicy
         }
 
         // Private-use URI scheme for native apps, for example "com.example.app:/oauth"
-        return 1 === preg_match('/^[a-z][a-z0-9+-]*(\.[a-z0-9+-]+)+$/', $scheme);
+        return !isset($parts['host']) && '' !== ($parts['path'] ?? '')
+            && 1 === preg_match('/^[a-z][a-z0-9+-]*(\.[a-z0-9+-]+)+$/', $scheme);
     }
 }

@@ -46,7 +46,8 @@ final readonly class ClientRegistrationController
             }
         }
 
-        if (null !== $this->initialAccessToken && !hash_equals($this->initialAccessToken, $this->bearerToken($request))) {
+        // An empty token, configured or sent, never matches: an unset environment variable must not open the endpoint
+        if (null !== $this->initialAccessToken && ('' === $this->initialAccessToken || '' === ($token = $this->bearerToken($request)) || !hash_equals($this->initialAccessToken, $token))) {
             return $this->error('invalid_token', 'A valid initial access token is required.', Response::HTTP_UNAUTHORIZED, [
                 'WWW-Authenticate' => 'Bearer error="invalid_token"',
             ]);

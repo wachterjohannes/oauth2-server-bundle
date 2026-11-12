@@ -54,6 +54,24 @@ final class ClientRegistrationControllerTest extends TestCase
         $this->assertSame(401, $controller->indexAction($request)->getStatusCode());
     }
 
+    public function testAnEmptyConfiguredTokenDoesNotOpenTheEndpoint(): void
+    {
+        $controller = $this->controller(new ClientManager(new EventDispatcher()), null, '');
+
+        $this->assertSame(401, $controller->indexAction($this->request('203.0.113.1'))->getStatusCode());
+
+        $request = $this->request('203.0.113.1');
+        $request->headers->set('Authorization', 'Bearer ');
+        $this->assertSame(401, $controller->indexAction($request)->getStatusCode());
+    }
+
+    public function testARequestWithoutATokenIsRefused(): void
+    {
+        $controller = $this->controller(new ClientManager(new EventDispatcher()), null, 'Secret-Token');
+
+        $this->assertSame(401, $controller->indexAction($this->request('203.0.113.1'))->getStatusCode());
+    }
+
     private function controller(ClientManager $manager, ?RateLimiterFactory $limiter, ?string $initialAccessToken = null): ClientRegistrationController
     {
         $registrar = new ClientRegistrar($manager, new NativePasswordHasher(), new RedirectUriPolicy(), Client::class, ['authorization_code', 'refresh_token'], ['fancy'], ['fancy'], 10);

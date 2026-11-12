@@ -175,6 +175,11 @@ final readonly class ClientRegistrar
             throw $this->invalid('client_name must be a non-empty string.');
         }
 
+        // The name reaches terminals and consent screens, and a NUL byte makes some databases fail
+        if (1 !== preg_match('//u', $name) || 0 !== preg_match('/\p{C}/u', $name)) {
+            throw $this->invalid('client_name must not contain control characters.');
+        }
+
         if (mb_strlen($name) > self::MAX_NAME_LENGTH) {
             throw $this->invalid(\sprintf('client_name may be at most %d characters long.', self::MAX_NAME_LENGTH));
         }

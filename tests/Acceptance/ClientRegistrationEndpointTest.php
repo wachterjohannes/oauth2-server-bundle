@@ -99,6 +99,9 @@ final class ClientRegistrationEndpointTest extends AbstractAcceptanceTestCase
         yield 'with a redirect uri over the length limit' => [['redirect_uris' => ['https://example.com/' . str_repeat('a', 2000)]], 'invalid_redirect_uri'];
         yield 'with too many redirect uris' => [['redirect_uris' => array_map(static fn (int $i): string => "https://example.com/$i", range(1, 11))], 'invalid_redirect_uri'];
         yield 'with a name over the column length' => [$valid + ['client_name' => str_repeat('a', 129)], 'invalid_client_metadata'];
+        yield 'with a name that has an escape sequence' => [$valid + ['client_name' => "x\x1b[31my"], 'invalid_client_metadata'];
+        yield 'with a name that has a NUL byte' => [$valid + ['client_name' => "x\0y"], 'invalid_client_metadata'];
+        yield 'with a name that has a line break' => [$valid + ['client_name' => "x\ny"], 'invalid_client_metadata'];
         yield 'with a name that is no string' => [$valid + ['client_name' => ['a']], 'invalid_client_metadata'];
         yield 'with a grant that is not allowed' => [$valid + ['grant_types' => ['client_credentials']], 'invalid_client_metadata'];
         yield 'with an unknown grant' => [$valid + ['grant_types' => ['password']], 'invalid_client_metadata'];

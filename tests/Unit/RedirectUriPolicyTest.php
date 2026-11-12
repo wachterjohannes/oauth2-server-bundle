@@ -32,5 +32,11 @@ final class RedirectUriPolicyTest extends TestCase
         yield 'a dotted scheme the value object cannot parse' => ['vbscript.x:foo', false];
         yield 'no scheme' => ['example.com/callback', false];
         yield 'empty' => ['', false];
+        yield 'a private-use scheme without a path' => ['com.example.app:', false];
+        yield 'a private-use scheme with a host' => ['com.example.app://evil.com/x', false];
+        yield 'a trailing newline' => ["https://example.com/callback\n", false];
+        yield 'a NUL byte' => ["https://example.com/\0b", false];
+        yield 'an escape sequence' => ["https://example.com/\x1b[31mb", false];
+        yield 'a space' => ['https://example.com/a b', false];
     }
 }
