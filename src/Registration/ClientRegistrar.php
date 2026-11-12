@@ -58,6 +58,7 @@ final readonly class ClientRegistrar
         $redirectUris = $this->redirectUris($metadata, \in_array('authorization_code', $grants, true));
         $name = $this->clientName($metadata);
         $authMethod = $this->authMethod($metadata);
+        $this->assertCompatible($grants, $authMethod);
         $scopes = $this->scopes($metadata);
 
         $identifier = bin2hex(random_bytes(16));
@@ -114,6 +115,22 @@ final readonly class ClientRegistrar
         }
 
         return array_values(array_unique($grants));
+    }
+
+    /**
+     * @param list<non-empty-string> $grants
+     */
+    private function assertCompatible(array $grants, string $authMethod): void
+    {
+        // The client credentials grant refuses a client without a secret
+        if ('none' === $authMethod && \in_array('client_credentials', $grants, true)) {
+            throw $this->invalid('The client_credentials grant requires a client secret, token_endpoint_auth_method must not be "none".');
+        }
+
+        // A refresh token only comes with a grant that issues one
+        if (\in_array('refresh_token', $grants, true) && [] === array_intersect($grants, ['authorization_code', 'urn:ietf:params:oauth:grant-type:device_code'])) {
+            throw $this->invalid('The refresh_token grant requires the authorization_code or the device code grant.');
+        }
     }
 
     /**

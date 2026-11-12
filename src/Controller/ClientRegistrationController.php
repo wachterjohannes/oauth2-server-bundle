@@ -17,6 +17,8 @@ use Symfony\Component\RateLimiter\RateLimiterFactoryInterface;
  */
 final readonly class ClientRegistrationController
 {
+    private const MAX_BODY_LENGTH = 16384;
+
     /**
      * @param bool $enabled whether the registration is enabled in the bundle configuration
      * @param string|null $initialAccessToken a bearer token every registration request must carry
@@ -48,13 +50,24 @@ final readonly class ClientRegistrationController
 
         // An empty token, configured or sent, never matches: an unset environment variable must not open the endpoint
         if (null !== $this->initialAccessToken && ('' === $this->initialAccessToken || '' === ($token = $this->bearerToken($request)) || !hash_equals($this->initialAccessToken, $token))) {
+            // RFC 6750 section 3.1: a request without credentials gets the bare challenge
             return $this->error('invalid_token', 'A valid initial access token is required.', Response::HTTP_UNAUTHORIZED, [
-                'WWW-Authenticate' => 'Bearer error="invalid_token"',
+                'WWW-Authenticate' => $request->headers->has('Authorization') ? 'Bearer error="invalid_token"' : 'Bearer',
             ]);
         }
 
+        // Before decoding: a form post from another site must not register clients, and a body is not meant to be large
+        if ('application/json' !== strtolower(trim(explode(';', (string) $request->headers->get('Content-Type'))[0]))) {
+            return $this->error(InvalidClientMetadataException::INVALID_CLIENT_METADATA, 'The request must have the content type application/json.', Response::HTTP_UNSUPPORTED_MEDIA_TYPE);
+        }
+
+        $body = $request->getContent();
+        if (\strlen($body) > self::MAX_BODY_LENGTH) {
+            return $this->error(InvalidClientMetadataException::INVALID_CLIENT_METADATA, \sprintf('The request body may be at most %d bytes long.', self::MAX_BODY_LENGTH), Response::HTTP_REQUEST_ENTITY_TOO_LARGE);
+        }
+
         try {
-            $metadata = json_decode($request->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+            $metadata = json_decode($body, true, 512, \JSON_THROW_ON_ERROR);
         } catch (\JsonException) {
             return $this->error(InvalidClientMetadataException::INVALID_CLIENT_METADATA, 'The request body must be valid JSON.');
         }

@@ -259,11 +259,16 @@ final class LeagueOAuth2ServerExtension extends Extension implements PrependExte
 
         $defaultScopes = array_values(array_intersect($scopes['default'], $allowedScopes));
 
+        // Otherwise a client that asks for no scope would get every scope it may ask for
+        if ($registration['enabled'] && [] === $defaultScopes) {
+            throw new \LogicException('None of the default scopes of "league_oauth2_server.scopes.default" is allowed by "league_oauth2_server.authorization_server.dynamic_client_registration.scopes". Allow at least one of them.');
+        }
+
         $container->findDefinition(ClientRegistrar::class)
             ->replaceArgument(3, $clientClass)
             ->replaceArgument(4, array_values($registration['grant_types']))
             ->replaceArgument(5, array_values($allowedScopes))
-            ->replaceArgument(6, [] === $defaultScopes ? array_values($allowedScopes) : $defaultScopes)
+            ->replaceArgument(6, $defaultScopes)
             ->replaceArgument(7, $registration['max_redirect_uris'])
         ;
 
