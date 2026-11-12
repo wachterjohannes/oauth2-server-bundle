@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use function Symfony\Component\DependencyInjection\Loader\Configurator\service;
 
+use League\Bundle\OAuth2ServerBundle\Command\ClearUnusedClientsCommand;
 use League\Bundle\OAuth2ServerBundle\Manager\AccessTokenManagerInterface;
 use League\Bundle\OAuth2ServerBundle\Manager\AuthorizationCodeManagerInterface;
 use League\Bundle\OAuth2ServerBundle\Manager\ClientManagerInterface;
@@ -17,6 +18,7 @@ use League\Bundle\OAuth2ServerBundle\Manager\RefreshTokenManagerInterface;
 use League\Bundle\OAuth2ServerBundle\Persistence\Mapping\Driver;
 use League\Bundle\OAuth2ServerBundle\Service\CredentialsRevoker\DoctrineCredentialsRevoker;
 use League\Bundle\OAuth2ServerBundle\Service\CredentialsRevokerInterface;
+use League\Bundle\OAuth2ServerBundle\Service\UnusedClientFinder\DoctrineUnusedClientFinder;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 
@@ -25,6 +27,7 @@ return static function (ContainerConfigurator $container): void {
 
         ->set('league.oauth2_server.persistence.driver', Driver::class)
             ->args([
+                null,
                 null,
                 null,
                 null,
@@ -79,5 +82,21 @@ return static function (ContainerConfigurator $container): void {
             ])
         ->alias(CredentialsRevokerInterface::class, 'league.oauth2_server.credentials_revoker.doctrine')
         ->alias(DoctrineCredentialsRevoker::class, 'league.oauth2_server.credentials_revoker.doctrine')
+
+        // Only with the dynamic client registration, the extension removes them otherwise
+        ->set(DoctrineUnusedClientFinder::class)
+            ->args([
+                null,
+                null,
+            ])
+
+        ->set('league.oauth2_server.command.clear_unused_clients', ClearUnusedClientsCommand::class)
+            ->args([
+                service(DoctrineUnusedClientFinder::class),
+                service(ClientManagerInterface::class),
+                null,
+            ])
+            ->tag('console.command', ['command' => 'league:oauth2-server:clear-unused-clients'])
+        ->alias(ClearUnusedClientsCommand::class, 'league.oauth2_server.command.clear_unused_clients')
     ;
 };

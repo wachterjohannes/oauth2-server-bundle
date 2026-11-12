@@ -94,9 +94,37 @@ A request over the budget gets `429` with a `Retry-After` header. Every request 
 
 Behind a reverse proxy the client IP address is the one of the proxy unless you configure `framework.trusted_proxies`. Without it, all callers share one budget.
 
-### Not covered
+## Removing unused clients
 
-The bundle does not delete clients that were registered and never used. Plan a way to clean them up if the endpoint is open to the public.
+Every registration adds a row to the client table. With an open endpoint, the table grows without limit. Run the command regularly, for example once a day from cron:
+
+```console
+php bin/console league:oauth2-server:clear-unused-clients
+```
+
+It removes the clients that registered themselves and were neither registered nor issued an access token for 60 days. The tokens of a removed client go with it.
+
+| Option               | Default | Meaning                                                              |
+|----------------------|---------|----------------------------------------------------------------------|
+| `--older-than=P30D`  | `P60D`  | How long a client must be unused, as a date interval specification.  |
+| `--dry-run`          |         | List the clients without removing them.                              |
+
+The window must be at least as long as `refresh_token_ttl`. A refresh token does not point to its client once the access token is cleared, so a shorter window could remove a client that still holds a valid refresh token. The command refuses such a window.
+
+Clients you create yourself are never removed.
+
+### Database change
+
+With the registration enabled, the client table gets two nullable columns for the fields `registeredAt` and `lastUsedAt`. Generate and run a migration:
+
+```console
+php bin/console doctrine:migrations:diff
+php bin/console doctrine:migrations:migrate
+```
+
+Clients that exist before the migration have no `registeredAt` and are never removed. The columns exist only while `dynamic_client_registration.enabled` is `true`.
+
+`lastUsedAt` is written when a registered client gets an access token, at most once a day.
 
 ## Other options
 

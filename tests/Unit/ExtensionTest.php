@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace League\Bundle\OAuth2ServerBundle\Tests\Unit;
 
+use League\Bundle\OAuth2ServerBundle\Command\ClearUnusedClientsCommand;
 use League\Bundle\OAuth2ServerBundle\Controller\AuthorizationServerMetadataController;
 use League\Bundle\OAuth2ServerBundle\Controller\ClientRegistrationController;
 use League\Bundle\OAuth2ServerBundle\DependencyInjection\LeagueOAuth2ServerExtension;
+use League\Bundle\OAuth2ServerBundle\EventListener\RecordClientUsageListener;
 use League\Bundle\OAuth2ServerBundle\Manager\InMemory\ScopeManager;
 use League\Bundle\OAuth2ServerBundle\Model\Client;
 use League\Bundle\OAuth2ServerBundle\Registration\ClientRegistrar;
+use League\Bundle\OAuth2ServerBundle\Service\UnusedClientFinder\DoctrineUnusedClientFinder;
 use League\OAuth2\Server\AuthorizationServer;
 use League\OAuth2\Server\Grant\AuthCodeGrant;
 use League\OAuth2\Server\Grant\ClientCredentialsGrant;
@@ -356,6 +359,29 @@ final class ExtensionTest extends TestCase
         $this->assertNull($controller->getArgument(3));
     }
 
+    public function testTheUsageTrackingAndCleanupExistOnlyWithTheRegistration(): void
+    {
+        $ids = [RecordClientUsageListener::class, ClearUnusedClientsCommand::class, DoctrineUnusedClientFinder::class];
+
+        $doctrine = ['doctrine' => ['entity_manager' => 'default']];
+
+        $off = new ContainerBuilder();
+        $this->setupContainer($off);
+        (new LeagueOAuth2ServerExtension())->load($this->getValidConfiguration(['persistence' => $doctrine]), $off);
+
+        $on = new ContainerBuilder();
+        $this->setupContainer($on);
+        (new LeagueOAuth2ServerExtension())->load($this->getValidConfiguration(['persistence' => $doctrine, 'dynamic_client_registration' => ['enabled' => true]]), $on);
+
+        foreach ($ids as $id) {
+            $this->assertFalse($off->hasDefinition($id) || $off->hasAlias($id), $id . ' must not exist without the registration');
+            $this->assertTrue($on->hasDefinition($id) || $on->hasAlias($id), $id . ' must exist with the registration');
+        }
+
+        $this->assertFalse($off->findDefinition('league.oauth2_server.persistence.driver')->getArgument(4));
+        $this->assertTrue($on->findDefinition('league.oauth2_server.persistence.driver')->getArgument(4));
+    }
+
     public function testTheRegistrationIsWiredFromTheConfiguration(): void
     {
         $container = new ContainerBuilder();
@@ -513,7 +539,7 @@ final class ExtensionTest extends TestCase
                 ],
                 // Pick one for valid config:
                 // 'persistence' => ['doctrine' => []]
-                'persistence' => ['in_memory' => 1],
+                'persistence' => $options['persistence'] ?? ['in_memory' => 1],
             ],
         ];
     }
