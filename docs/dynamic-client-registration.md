@@ -46,12 +46,12 @@ The response has the status `201` and carries the metadata that was registered, 
 |------------------------------|--------------------------------------------------------------------------------------------------------------------|
 | `redirect_uris`              | Required for the authorization code grant. At most `max_redirect_uris` entries of 2000 characters. HTTPS, an HTTP loopback address (`localhost`, `127.0.0.1`, `[::1]`) or a private-use scheme with a dot and a path such as `com.example.app:/oauth` (RFC 8252). No fragments, no credentials. |
 | `client_name`                | At most 128 characters. Defaults to `Dynamically registered client`.                                               |
-| `grant_types`                | Subset of `dynamic_client_registration.grant_types`. Defaults to `["authorization_code"]`. The bundle adds no grant for you, ask for `refresh_token` if the client needs it. |
+| `grant_types`                | Subset of `dynamic_client_registration.grant_types`. Defaults to `["authorization_code"]`. The bundle adds no grant for you, ask for `refresh_token` if the client needs it. `refresh_token` needs `authorization_code` or the device code grant. `client_credentials` needs a secret. |
 | `response_types`             | Optional. Must be `["code"]` with the authorization code grant.                                                    |
 | `token_endpoint_auth_method` | `client_secret_basic` (the default), `client_secret_post` or `none`. Public clients (`none`) get no secret.        |
-| `scope`                      | Space separated. Scopes that are not allowed are dropped, and the request fails when none is left. Without it, the default scopes apply. |
+| `scope`                      | Space separated. Scopes that are not allowed are dropped, and the request fails when none is left. Without it, the default scopes apply: those of `scopes.default` that `dynamic_client_registration.scopes` allows. Configuring none of them fails when the container is built. |
 
-Other metadata is ignored. The registered clients are active, never allow plain text PKCE and are stored through your client manager. Listen to `OAuth2Events::PRE_SAVE_CLIENT` to change a client before it is saved.
+The request must have the content type `application/json` and at most 16384 bytes. Others get `415` and `413`. Other metadata is ignored. The registered clients are active, never allow plain text PKCE and are stored through your client manager. Listen to `OAuth2Events::PRE_SAVE_CLIENT` to change a client before it is saved.
 
 Errors follow RFC 7591 section 3.2.2: `400` with `invalid_redirect_uri` or `invalid_client_metadata` and an `error_description`.
 
@@ -69,7 +69,7 @@ league_oauth2_server:
             initial_access_token: '%env(OAUTH_REGISTRATION_TOKEN)%'
 ```
 
-Every request must then send `Authorization: Bearer <token>`. Others get `401` with `invalid_token`. Use a long random value and compare it with what you hand out to your clients.
+Every request must then send `Authorization: Bearer <token>`. Others get `401` with `invalid_token`. An empty token never matches. Use a long random value.
 
 ### Rate limit
 
@@ -91,6 +91,8 @@ league_oauth2_server:
 ```
 
 A request over the budget gets `429` with a `Retry-After` header. Every request counts, also those that are refused.
+
+The budget is per client IP address. Callers that share an address, such as a company network, share the budget, and a caller with a whole IPv6 /64 can use many. Combine it with an initial access token for a registration that is not open to everyone.
 
 Behind a reverse proxy the client IP address is the one of the proxy unless you configure `framework.trusted_proxies`. Without it, all callers share one budget.
 
@@ -135,3 +137,5 @@ Clients that exist before the migration have no `registeredAt` and are never rem
 | `grant_types`       | `authorization_code`, `refresh_token`      | The grants a client may register for. They must be enabled grants.         |
 | `scopes`            | all available scopes                       | The scopes a client may register for.                                      |
 | `max_redirect_uris` | `10`                                       | How many redirect URIs one client may register.                            |
+
+Do not add `client_credentials` to `grant_types` for an open endpoint. Such a client gets tokens for its scopes without any user.

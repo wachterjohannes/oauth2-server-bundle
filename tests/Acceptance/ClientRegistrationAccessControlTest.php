@@ -24,7 +24,7 @@ final class ClientRegistrationAccessControlTest extends AbstractAcceptanceTestCa
         $this->client->request('POST', '/register', [], [], ['CONTENT_TYPE' => 'application/json'], self::BODY);
 
         $this->assertSame(401, $this->client->getResponse()->getStatusCode());
-        $this->assertSame('Bearer error="invalid_token"', $this->client->getResponse()->headers->get('WWW-Authenticate'));
+        $this->assertSame('Bearer', $this->client->getResponse()->headers->get('WWW-Authenticate'));
         $this->assertSame('invalid_token', json_decode($this->client->getResponse()->getContent(), true)['error']);
         $this->assertCount(0, $this->client->getContainer()->get(ClientManagerInterface::class)->list(null));
     }
@@ -36,6 +36,7 @@ final class ClientRegistrationAccessControlTest extends AbstractAcceptanceTestCa
         $this->client->request('POST', '/register', [], [], ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer wrong-token'], self::BODY);
 
         $this->assertSame(401, $this->client->getResponse()->getStatusCode());
+        $this->assertSame('Bearer error="invalid_token"', $this->client->getResponse()->headers->get('WWW-Authenticate'));
     }
 
     public function testTheInitialAccessTokenLetsAClientRegister(): void

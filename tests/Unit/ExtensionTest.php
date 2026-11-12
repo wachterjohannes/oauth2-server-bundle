@@ -382,6 +382,17 @@ final class ExtensionTest extends TestCase
         $this->assertTrue($on->findDefinition('league.oauth2_server.persistence.driver')->getArgument(4));
     }
 
+    public function testTheRegistrationNeedsADefaultScopeItAllows(): void
+    {
+        $container = new ContainerBuilder();
+        $this->setupContainer($container);
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('None of the default scopes');
+
+        (new LeagueOAuth2ServerExtension())->load($this->getValidConfiguration(['dynamic_client_registration' => ['enabled' => true, 'scopes' => ['bar']]]), $container);
+    }
+
     public function testTheRegistrationIsWiredFromTheConfiguration(): void
     {
         $container = new ContainerBuilder();

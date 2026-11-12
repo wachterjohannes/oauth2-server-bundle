@@ -111,6 +111,8 @@ final class ClientRegistrationEndpointTest extends AbstractAcceptanceTestCase
         yield 'with response types that do not match the grant' => [$valid + ['response_types' => ['token']], 'invalid_client_metadata'];
         yield 'with an unknown auth method' => [$valid + ['token_endpoint_auth_method' => 'private_key_jwt'], 'invalid_client_metadata'];
         yield 'with a scope that is not available' => [$valid + ['scope' => 'admin'], 'invalid_client_metadata'];
+        yield 'with a refresh token and nothing that issues one' => [$valid + ['grant_types' => ['refresh_token']], 'invalid_client_metadata'];
+        yield 'with client credentials and no secret' => [$valid + ['grant_types' => ['client_credentials'], 'token_endpoint_auth_method' => 'none'], 'invalid_client_metadata'];
         yield 'with a scope that is no string' => [$valid + ['scope' => ['fancy']], 'invalid_client_metadata'];
     }
 
@@ -127,6 +129,28 @@ final class ClientRegistrationEndpointTest extends AbstractAcceptanceTestCase
         $this->client->request('POST', '/register', [], [], ['CONTENT_TYPE' => 'application/json'], '["https://example.com/callback"]');
 
         $this->assertSame(400, $this->client->getResponse()->getStatusCode());
+    }
+
+    public function testAFormPostIsRefused(): void
+    {
+        $this->client->request('POST', '/register', [], [], ['CONTENT_TYPE' => 'text/plain'], '{"redirect_uris": ["https://example.com/callback"]}');
+
+        $this->assertSame(415, $this->client->getResponse()->getStatusCode());
+        $this->assertCount(0, $this->client->getContainer()->get(ClientManagerInterface::class)->list(null));
+    }
+
+    public function testAJsonContentTypeWithACharsetIsAccepted(): void
+    {
+        $this->client->request('POST', '/register', [], [], ['CONTENT_TYPE' => 'Application/JSON; charset=UTF-8'], '{"redirect_uris": ["https://example.com/callback"]}');
+
+        $this->assertSame(201, $this->client->getResponse()->getStatusCode());
+    }
+
+    public function testALargeBodyIsRefused(): void
+    {
+        $this->client->request('POST', '/register', [], [], ['CONTENT_TYPE' => 'application/json'], json_encode(['redirect_uris' => ['https://example.com/callback'], 'padding' => str_repeat('a', 16384)]));
+
+        $this->assertSame(413, $this->client->getResponse()->getStatusCode());
     }
 
     public function testOtherMethodsAreNotAllowed(): void
