@@ -6,6 +6,7 @@ namespace League\Bundle\OAuth2ServerBundle\DependencyInjection;
 
 use Doctrine\Bundle\DoctrineBundle\DoctrineBundle;
 use League\Bundle\OAuth2ServerBundle\Command\ClearExpiredTokensCommand;
+use League\Bundle\OAuth2ServerBundle\Command\ClearUnusedClientsCommand;
 use League\Bundle\OAuth2ServerBundle\Command\CreateClientCommand;
 use League\Bundle\OAuth2ServerBundle\Command\GenerateKeyPairCommand;
 use League\Bundle\OAuth2ServerBundle\Controller\AuthorizationServerMetadataController;
@@ -13,6 +14,7 @@ use League\Bundle\OAuth2ServerBundle\Controller\ClientRegistrationController;
 use League\Bundle\OAuth2ServerBundle\DBAL\Type\Grant as GrantType;
 use League\Bundle\OAuth2ServerBundle\DBAL\Type\RedirectUri as RedirectUriType;
 use League\Bundle\OAuth2ServerBundle\DBAL\Type\Scope as ScopeType;
+use League\Bundle\OAuth2ServerBundle\EventListener\RecordClientUsageListener;
 use League\Bundle\OAuth2ServerBundle\Manager\AccessTokenManagerInterface;
 use League\Bundle\OAuth2ServerBundle\Manager\AuthorizationCodeManagerInterface;
 use League\Bundle\OAuth2ServerBundle\Manager\ClientManagerInterface;
@@ -31,6 +33,7 @@ use League\Bundle\OAuth2ServerBundle\Registration\ClientRegistrar;
 use League\Bundle\OAuth2ServerBundle\Security\Authenticator\OAuth2Authenticator;
 use League\Bundle\OAuth2ServerBundle\Service\CredentialsRevoker\DoctrineCredentialsRevoker;
 use League\Bundle\OAuth2ServerBundle\Service\CredentialsRevokerInterface;
+use League\Bundle\OAuth2ServerBundle\Service\UnusedClientFinder\DoctrineUnusedClientFinder;
 use League\Bundle\OAuth2ServerBundle\ValueObject\Scope as ScopeModel;
 use League\OAuth2\Server\AuthorizationServer;
 use League\OAuth2\Server\AuthorizationValidators\BearerTokenValidator;
@@ -260,6 +263,14 @@ final class LeagueOAuth2ServerExtension extends Extension implements PrependExte
             if ([] !== $unknownScopes = array_diff($allowedScopes, $scopes['available'])) {
                 throw new \LogicException(\sprintf('Invalid scopes "%s" for path "league_oauth2_server.authorization_server.dynamic_client_registration.scopes". Permissible values: "%s"', implode('", "', $unknownScopes), implode('", "', $scopes['available'])));
             }
+        }
+
+        // Nothing tracks or removes clients that cannot register themselves
+        if (!$registration['enabled']) {
+            $container->removeDefinition(RecordClientUsageListener::class);
+            $container->removeAlias(ClearUnusedClientsCommand::class);
+            $container->removeDefinition('league.oauth2_server.command.clear_unused_clients');
+            $container->removeDefinition(DoctrineUnusedClientFinder::class);
         }
 
         $defaultScopes = array_values(array_intersect($scopes['default'], $allowedScopes));
@@ -507,6 +518,25 @@ final class LeagueOAuth2ServerExtension extends Extension implements PrependExte
             ->replaceArgument(1, $config['authorization_server']['persist_access_token'])
             ->replaceArgument(2, $persistenceConfig['table_prefix'])
             ->replaceArgument(3, $config['authorization_server']['enable_device_code_grant'])
+            ->replaceArgument(4, $config['authorization_server']['dynamic_client_registration']['enabled'])
+        ;
+
+        $container
+            ->findDefinition(DoctrineUnusedClientFinder::class)
+            ->replaceArgument(0, $entityManager)
+            ->replaceArgument(1, $config['client']['classname'])
+        ;
+
+        $container
+            ->findDefinition(ClearUnusedClientsCommand::class)
+            ->replaceArgument(1, $config['authorization_server']['refresh_token_ttl'])
+            ->replaceArgument(2, $config['authorization_server']['access_token_ttl'])
+        ;
+
+        $container
+            ->findDefinition(RecordClientUsageListener::class)
+            ->replaceArgument(0, $entityManager)
+            ->replaceArgument(1, $config['client']['classname'])
         ;
 
         $container->setParameter('league.oauth2_server.persistence.doctrine.enabled', true);

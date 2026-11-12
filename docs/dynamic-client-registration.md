@@ -98,9 +98,39 @@ The budget is per client IP address. Callers that share an address, such as a co
 
 Behind a reverse proxy the client IP address is the one of the proxy unless you configure `framework.trusted_proxies`. Without it, all callers share one budget.
 
-### Not covered
+## Removing unused clients
 
-The bundle does not delete clients that were registered and never used. Plan a way to clean them up if the endpoint is open to the public.
+Every registration adds a row to the client table. With an open endpoint, the table grows without limit. Run the command regularly, for example once a day from cron:
+
+```console
+php bin/console league:oauth2-server:clear-unused-clients
+```
+
+It removes the clients that registered themselves and were neither registered nor issued an access token for 60 days. "Used" means the client got a token. Using a token at a resource server does not count. The command exists for Doctrine persistence only.
+
+Access tokens, authorization codes and device codes of a removed client are removed with it. Its refresh tokens can no longer be used and are removed by `league:oauth2-server:clear-expired-tokens`.
+
+| Option               | Default | Meaning                                                              |
+|----------------------|---------|----------------------------------------------------------------------|
+| `--older-than=P90D`  | `P60D`  | How long a client must be unused, as a date interval specification.  |
+| `--dry-run`          |         | List the clients without removing them.                              |
+
+The window must be longer than the longer one of `access_token_ttl` and `refresh_token_ttl`, plus one day. A refresh token does not point to its client once the access token is cleared, and the usage time is written at most once a day. A shorter window could remove a client that still holds a valid token. The command refuses such a window.
+
+Clients you create yourself are never removed.
+
+### Database change
+
+With the registration enabled, the client table gets two nullable columns for the fields `registeredAt` and `lastUsedAt`. Generate and run a migration:
+
+```console
+php bin/console doctrine:migrations:diff
+php bin/console doctrine:migrations:migrate
+```
+
+Clients that exist before the migration have no `registeredAt` and are never removed. The columns exist only while `dynamic_client_registration.enabled` is `true`.
+
+`lastUsedAt` is written when a registered client gets an access token, at most once a day.
 
 ## Other options
 

@@ -73,11 +73,14 @@ final readonly class ClientRegistrar
         ;
         $client->setAllowPlainTextPkce(false);
 
+        $issuedAt = new \DateTimeImmutable();
+        $client->setRegisteredAt($issuedAt);
+
         $this->clientManager->save($client);
 
         $registered = [
             'client_id' => $identifier,
-            'client_id_issued_at' => time(),
+            'client_id_issued_at' => $issuedAt->getTimestamp(),
             'client_name' => $name,
             'redirect_uris' => $redirectUris,
             'grant_types' => $grants,
