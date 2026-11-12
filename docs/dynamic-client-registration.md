@@ -6,6 +6,8 @@ The endpoint is off by default, and so is its route. Anyone who can reach an ena
 
 ## Enabling it
 
+The registrations are stored through your client manager, so the bundle needs Doctrine or a custom persistence. The in-memory persistence is refused, because the clients would be gone with the next request.
+
 1. Enable it in the bundle configuration:
 
     ```yaml

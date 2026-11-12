@@ -71,7 +71,7 @@ final class LeagueOAuth2ServerExtension extends Extension implements PrependExte
         $this->configurePersistence($loader, $container, $config);
         $this->configureAuthorizationServer($container, $config['authorization_server']);
         $this->configureMetadata($container, $config['authorization_server'], $config['scopes']['available']);
-        $this->configureClientRegistration($container, $config['authorization_server'], $config['scopes'], $config['client']['classname']);
+        $this->configureClientRegistration($container, $config['authorization_server'], $config['scopes'], $config['client']['classname'], $this->getPersistenceMethod($config));
         $this->configureResourceServer($container, $config['resource_server']);
         $this->configureScopes($container, $config['scopes']);
 
@@ -234,7 +234,7 @@ final class LeagueOAuth2ServerExtension extends Extension implements PrependExte
      * @param mixed[] $scopes
      * @param class-string $clientClass
      */
-    private function configureClientRegistration(ContainerBuilder $container, array $config, array $scopes, string $clientClass): void
+    private function configureClientRegistration(ContainerBuilder $container, array $config, array $scopes, string $clientClass, ?string $persistenceMethod): void
     {
         $registration = $config['dynamic_client_registration'];
 
@@ -248,6 +248,11 @@ final class LeagueOAuth2ServerExtension extends Extension implements PrependExte
         $allowedScopes = [] === $registration['scopes'] ? $scopes['available'] : $registration['scopes'];
 
         if ($registration['enabled']) {
+            // The registered clients would be gone with the next request
+            if ('in_memory' === $persistenceMethod) {
+                throw new \LogicException('The dynamic client registration needs a persistence that survives a request. Configure "league_oauth2_server.persistence.doctrine" or a custom persistence.');
+            }
+
             if ([] !== $disabledGrants = array_diff($registration['grant_types'], $enabledGrants)) {
                 throw new \LogicException(\sprintf('Invalid grant types "%s" for path "league_oauth2_server.authorization_server.dynamic_client_registration.grant_types". The grants are not enabled. Permissible values: "%s"', implode('", "', $disabledGrants), implode('", "', $enabledGrants)));
             }
