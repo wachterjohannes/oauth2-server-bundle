@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace League\Bundle\OAuth2ServerBundle\Tests\Unit;
 
 use League\Bundle\OAuth2ServerBundle\Controller\AuthorizationServerMetadataController;
+use League\Bundle\OAuth2ServerBundle\Controller\ClientRegistrationController;
 use League\Bundle\OAuth2ServerBundle\DependencyInjection\LeagueOAuth2ServerExtension;
 use League\Bundle\OAuth2ServerBundle\Manager\InMemory\ScopeManager;
+use League\Bundle\OAuth2ServerBundle\Model\Client;
+use League\Bundle\OAuth2ServerBundle\Registration\ClientRegistrar;
 use League\OAuth2\Server\AuthorizationServer;
 use League\OAuth2\Server\Grant\AuthCodeGrant;
 use League\OAuth2\Server\Grant\ClientCredentialsGrant;
@@ -18,6 +21,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Extension\Extension;
+use Symfony\Component\DependencyInjection\Reference;
 
 final class ExtensionTest extends TestCase
 {
@@ -338,6 +342,109 @@ final class ExtensionTest extends TestCase
         $this->assertSame($expected, $metadata['token_endpoint_auth_methods_supported'] ?? null);
     }
 
+    public function testTheRegistrationIsOffByDefault(): void
+    {
+        $container = new ContainerBuilder();
+        $this->setupContainer($container);
+
+        (new LeagueOAuth2ServerExtension())->load($this->getValidConfiguration(), $container);
+
+        $controller = $container->findDefinition(ClientRegistrationController::class);
+
+        $this->assertFalse($controller->getArgument(1));
+        $this->assertNull($controller->getArgument(2));
+        $this->assertNull($controller->getArgument(3));
+    }
+
+    public function testTheRegistrationIsWiredFromTheConfiguration(): void
+    {
+        $container = new ContainerBuilder();
+        $this->setupContainer($container);
+
+        $registration = ['enabled' => true, 'initial_access_token' => 'secret', 'rate_limiter' => 'limiter.registration', 'grant_types' => ['authorization_code'], 'scopes' => ['foo'], 'max_redirect_uris' => 3];
+
+        (new LeagueOAuth2ServerExtension())->load($this->getValidConfiguration(['dynamic_client_registration' => $registration]), $container);
+
+        $controller = $container->findDefinition(ClientRegistrationController::class);
+        $this->assertTrue($controller->getArgument(1));
+        $this->assertSame('secret', $controller->getArgument(2));
+        $this->assertEquals(new Reference('limiter.registration'), $controller->getArgument(3));
+
+        $registrar = $container->findDefinition(ClientRegistrar::class);
+        $this->assertSame(Client::class, $registrar->getArgument(3));
+        $this->assertSame(['authorization_code'], $registrar->getArgument(4));
+        $this->assertSame(['foo'], $registrar->getArgument(5));
+        $this->assertSame(['foo'], $registrar->getArgument(6));
+        $this->assertSame(3, $registrar->getArgument(7));
+    }
+
+    public function testEveryAvailableScopeIsAllowedWhenNoneIsConfigured(): void
+    {
+        $container = new ContainerBuilder();
+        $this->setupContainer($container);
+
+        (new LeagueOAuth2ServerExtension())->load($this->getValidConfiguration(['dynamic_client_registration' => ['enabled' => true]]), $container);
+
+        $registrar = $container->findDefinition(ClientRegistrar::class);
+        $this->assertSame(['authorization_code', 'refresh_token'], $registrar->getArgument(4));
+        $this->assertSame(['foo', 'bar'], $registrar->getArgument(5));
+        $this->assertSame(['foo'], $registrar->getArgument(6));
+    }
+
+    public function testTheMetadataAdvertiseTheRegistrationEndpointWhenItIsOn(): void
+    {
+        $container = new ContainerBuilder();
+        $this->setupContainer($container);
+
+        $configuration = $this->getValidConfiguration(['metadata' => ['enabled' => true, 'issuer' => 'https://example.com'], 'dynamic_client_registration' => ['enabled' => true]]);
+
+        (new LeagueOAuth2ServerExtension())->load($configuration, $container);
+
+        $this->assertSame('oauth2_client_registration', $container->findDefinition(AuthorizationServerMetadataController::class)->getArgument(5)['registration_endpoint']);
+    }
+
+    public function testAGrantThatIsNotEnabledCannotBeRegisteredFor(): void
+    {
+        $container = new ContainerBuilder();
+        $this->setupContainer($container);
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('The grants are not enabled');
+
+        (new LeagueOAuth2ServerExtension())->load($this->getValidConfiguration(['dynamic_client_registration' => ['enabled' => true, 'grant_types' => ['authorization_code', 'urn:ietf:params:oauth:grant-type:device_code']]]), $container);
+    }
+
+    public function testAScopeThatIsNotAvailableCannotBeRegisteredFor(): void
+    {
+        $container = new ContainerBuilder();
+        $this->setupContainer($container);
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('Invalid scopes "admin"');
+
+        (new LeagueOAuth2ServerExtension())->load($this->getValidConfiguration(['dynamic_client_registration' => ['enabled' => true, 'scopes' => ['foo', 'admin']]]), $container);
+    }
+
+    public function testAGrantThatIsNotKnownIsRejected(): void
+    {
+        $container = new ContainerBuilder();
+        $this->setupContainer($container);
+
+        $this->expectException(InvalidConfigurationException::class);
+
+        (new LeagueOAuth2ServerExtension())->load($this->getValidConfiguration(['dynamic_client_registration' => ['enabled' => true, 'grant_types' => ['password']]]), $container);
+    }
+
+    public function testTheControllersAreDroppedWhenTheApplicationHasNoRouter(): void
+    {
+        $container = $this->containerForProcessing();
+
+        (new LeagueOAuth2ServerExtension())->process($container);
+
+        $this->assertFalse($container->hasDefinition('league.oauth2_server.controller.client_registration'));
+        $this->assertFalse($container->hasAlias(ClientRegistrationController::class));
+    }
+
     public static function authMethodsProvider(): iterable
     {
         yield 'with the authorization code grant' => [[], ['client_secret_basic', 'client_secret_post', 'none']];
@@ -391,7 +498,7 @@ final class ExtensionTest extends TestCase
                     'enable_refresh_token_grant' => $options['enable_refresh_token_grant'] ?? true,
                     'enable_device_code_grant' => $options['enable_device_code_grant'] ?? false,
                     'revoke_refresh_tokens' => $options['revoke_refresh_tokens'] ?? true,
-                ] + (isset($options['metadata']) ? ['metadata' => $options['metadata']] : []),
+                ] + array_intersect_key($options, ['metadata' => true, 'dynamic_client_registration' => true]),
                 'resource_server' => [
                     'public_key' => 'foo',
                 ],

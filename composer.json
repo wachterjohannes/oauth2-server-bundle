@@ -41,7 +41,8 @@
         "phpstan/phpstan-symfony": "^2.1",
         "rector/rector": "^2.6",
         "symfony/browser-kit": "^7.4|^8.1",
-        "symfony/phpunit-bridge": "^8.1"
+        "symfony/phpunit-bridge": "^8.1",
+        "symfony/rate-limiter": "^7.4|^8.1"
     },
     "conflict": {
         "doctrine/dbal": "<4.0",
@@ -51,7 +52,8 @@
     },
     "suggest": {
         "doctrine/doctrine-bundle": "Allow usage of doctrine as persistence layer",
-        "doctrine/orm": "Allow usage of doctrine as persistence layer"
+        "doctrine/orm": "Allow usage of doctrine as persistence layer",
+        "symfony/rate-limiter": "Limit the dynamic client registration per client IP address"
     },
     "autoload": {
         "psr-4": { "League\\Bundle\\OAuth2ServerBundle\\": "src/" }
