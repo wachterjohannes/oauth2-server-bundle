@@ -24,7 +24,6 @@ use League\Bundle\OAuth2ServerBundle\Converter\UserConverter;
 use League\Bundle\OAuth2ServerBundle\Converter\UserConverterInterface;
 use League\Bundle\OAuth2ServerBundle\Event\AuthorizationRequestResolveEventFactory;
 use League\Bundle\OAuth2ServerBundle\EventListener\AddClientDefaultScopesListener;
-use League\Bundle\OAuth2ServerBundle\EventListener\RecordClientUsageListener;
 use League\Bundle\OAuth2ServerBundle\Manager\AccessTokenManagerInterface;
 use League\Bundle\OAuth2ServerBundle\Manager\AuthorizationCodeManagerInterface;
 use League\Bundle\OAuth2ServerBundle\Manager\ClientManagerInterface;
@@ -60,7 +59,6 @@ use League\OAuth2\Server\Repositories\DeviceCodeRepositoryInterface;
 use League\OAuth2\Server\Repositories\RefreshTokenRepositoryInterface;
 use League\OAuth2\Server\Repositories\ScopeRepositoryInterface;
 use League\OAuth2\Server\Repositories\UserRepositoryInterface;
-use League\OAuth2\Server\RequestEvent;
 use League\OAuth2\Server\ResourceServer;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Symfony\Bridge\PsrHttpMessage\Factory\HttpFoundationFactory;
@@ -384,13 +382,6 @@ return static function (ContainerConfigurator $container): void {
                 param('league.oauth2_server.scopes.default'),
             ])
             ->tag('kernel.event_listener', ['event' => OAuth2Events::PRE_SAVE_CLIENT])
-
-        // Only with the dynamic client registration, the extension removes it otherwise
-        ->set(RecordClientUsageListener::class)
-            ->args([
-                service(ClientManagerInterface::class),
-            ])
-            ->tag('kernel.event_listener', ['event' => RequestEvent::ACCESS_TOKEN_ISSUED])
 
         // Storage managers
         ->set('league.oauth2_server.manager.in_memory.scope', ScopeManager::class)

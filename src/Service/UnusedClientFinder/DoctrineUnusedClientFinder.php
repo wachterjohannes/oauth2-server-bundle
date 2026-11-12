@@ -24,6 +24,22 @@ final readonly class DoctrineUnusedClientFinder
     }
 
     /**
+     * Removes them with one statement, because there may be many. The tokens of a client go with it by the foreign keys.
+     *
+     * @return int the number of removed clients
+     */
+    public function remove(\DateTimeImmutable $since): int
+    {
+        return (int) $this->entityManager->createQueryBuilder()
+            ->delete($this->clientFqcn, 'c')
+            ->where('c.registeredAt IS NOT NULL')
+            ->andWhere('COALESCE(c.lastUsedAt, c.registeredAt) < :since')
+            ->setParameter('since', $since, 'datetime_immutable')
+            ->getQuery()
+            ->execute();
+    }
+
+    /**
      * @return list<AbstractClient>
      */
     public function find(\DateTimeImmutable $since): array

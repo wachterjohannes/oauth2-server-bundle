@@ -102,14 +102,16 @@ Every registration adds a row to the client table. With an open endpoint, the ta
 php bin/console league:oauth2-server:clear-unused-clients
 ```
 
-It removes the clients that registered themselves and were neither registered nor issued an access token for 60 days. The tokens of a removed client go with it.
+It removes the clients that registered themselves and were neither registered nor issued an access token for 60 days. "Used" means the client got a token. Using a token at a resource server does not count. The command exists for Doctrine persistence only.
+
+Access tokens, authorization codes and device codes of a removed client are removed with it. Its refresh tokens can no longer be used and are removed by `league:oauth2-server:clear-expired-tokens`.
 
 | Option               | Default | Meaning                                                              |
 |----------------------|---------|----------------------------------------------------------------------|
-| `--older-than=P30D`  | `P60D`  | How long a client must be unused, as a date interval specification.  |
+| `--older-than=P90D`  | `P60D`  | How long a client must be unused, as a date interval specification.  |
 | `--dry-run`          |         | List the clients without removing them.                              |
 
-The window must be at least as long as `refresh_token_ttl`. A refresh token does not point to its client once the access token is cleared, so a shorter window could remove a client that still holds a valid refresh token. The command refuses such a window.
+The window must be longer than the longer one of `access_token_ttl` and `refresh_token_ttl`, plus one day. A refresh token does not point to its client once the access token is cleared, and the usage time is written at most once a day. A shorter window could remove a client that still holds a valid token. The command refuses such a window.
 
 Clients you create yourself are never removed.
 

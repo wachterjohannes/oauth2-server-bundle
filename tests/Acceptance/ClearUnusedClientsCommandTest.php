@@ -82,8 +82,9 @@ final class ClearUnusedClientsCommandTest extends AbstractAcceptanceTestCase
 
     public static function refusedWindowProvider(): iterable
     {
-        yield 'a week' => ['P7D', 'at least as long as the lifetime of a refresh token (P1M)'];
-        yield 'no time at all' => ['PT0S', 'at least as long as the lifetime of a refresh token (P1M)'];
+        yield 'the lifetime of a refresh token' => ['P1M', 'longer than the lifetime of the longest token'];
+        yield 'a week' => ['P7D', 'longer than the lifetime of the longest token'];
+        yield 'no time at all' => ['PT0S', 'longer than the lifetime of the longest token'];
         yield 'something that is no interval' => ['yesterday', 'must be a date interval specification'];
     }
 

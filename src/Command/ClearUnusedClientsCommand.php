@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace League\Bundle\OAuth2ServerBundle\Command;
 
-use League\Bundle\OAuth2ServerBundle\Manager\ClientManagerInterface;
+use League\Bundle\OAuth2ServerBundle\EventListener\RecordClientUsageListener;
 use League\Bundle\OAuth2ServerBundle\Model\AbstractClient;
 use League\Bundle\OAuth2ServerBundle\Service\UnusedClientFinder\DoctrineUnusedClientFinder;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -19,11 +19,12 @@ final class ClearUnusedClientsCommand extends Command
 {
     /**
      * @param string $refreshTokenTtl the lifetime of a refresh token, as a date interval specification
+     * @param string $accessTokenTtl the lifetime of an access token, as a date interval specification
      */
     public function __construct(
         private readonly DoctrineUnusedClientFinder $finder,
-        private readonly ClientManagerInterface $clientManager,
         private readonly string $refreshTokenTtl,
+        private readonly string $accessTokenTtl,
     ) {
         parent::__construct();
     }
@@ -62,9 +63,11 @@ final class ClearUnusedClientsCommand extends Command
         $now = new \DateTimeImmutable();
         $since = $now->sub($period);
 
-        // A client with a refresh token that is still valid must stay: its tokens do not tell which client they belong to
-        if ($since > $now->sub(new \DateInterval($this->refreshTokenTtl))) {
-            $io->error(\sprintf('The "older-than" option must be at least as long as the lifetime of a refresh token (%s), or a client with a valid refresh token could be removed.', $this->refreshTokenTtl));
+        // A refresh token does not tell its client once the access token is cleared, and using an access token records nothing.
+        // A token can also be issued up to one recording interval after the last recorded use.
+        $latestToken = min($now->sub(new \DateInterval($this->refreshTokenTtl)), $now->sub(new \DateInterval($this->accessTokenTtl)));
+        if ($since > $latestToken->modify('-' . RecordClientUsageListener::RESOLUTION . ' seconds')) {
+            $io->error(\sprintf('The "older-than" option must be longer than the lifetime of the longest token (%s or %s) plus one day, or a client with a valid token could be removed.', $this->refreshTokenTtl, $this->accessTokenTtl));
 
             return Command::FAILURE;
         }
@@ -86,11 +89,9 @@ final class ClearUnusedClientsCommand extends Command
             return Command::SUCCESS;
         }
 
-        foreach ($clients as $client) {
-            $this->clientManager->remove($client);
-        }
+        $removed = $this->finder->remove($since);
 
-        $io->success(\sprintf('Removed %d unused client%s.', \count($clients), 1 === \count($clients) ? '' : 's'));
+        $io->success(\sprintf('Removed %d unused client%s.', $removed, 1 === $removed ? '' : 's'));
 
         return Command::SUCCESS;
     }

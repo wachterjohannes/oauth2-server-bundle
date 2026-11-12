@@ -5,6 +5,7 @@ declare(strict_types=1);
 use function Symfony\Component\DependencyInjection\Loader\Configurator\service;
 
 use League\Bundle\OAuth2ServerBundle\Command\ClearUnusedClientsCommand;
+use League\Bundle\OAuth2ServerBundle\EventListener\RecordClientUsageListener;
 use League\Bundle\OAuth2ServerBundle\Manager\AccessTokenManagerInterface;
 use League\Bundle\OAuth2ServerBundle\Manager\AuthorizationCodeManagerInterface;
 use League\Bundle\OAuth2ServerBundle\Manager\ClientManagerInterface;
@@ -19,6 +20,7 @@ use League\Bundle\OAuth2ServerBundle\Persistence\Mapping\Driver;
 use League\Bundle\OAuth2ServerBundle\Service\CredentialsRevoker\DoctrineCredentialsRevoker;
 use League\Bundle\OAuth2ServerBundle\Service\CredentialsRevokerInterface;
 use League\Bundle\OAuth2ServerBundle\Service\UnusedClientFinder\DoctrineUnusedClientFinder;
+use League\OAuth2\Server\RequestEvent;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 
@@ -90,10 +92,18 @@ return static function (ContainerConfigurator $container): void {
                 null,
             ])
 
+        ->set(RecordClientUsageListener::class)
+            ->args([
+                null,
+                null,
+                service('logger')->nullOnInvalid(),
+            ])
+            ->tag('kernel.event_listener', ['event' => RequestEvent::ACCESS_TOKEN_ISSUED])
+
         ->set('league.oauth2_server.command.clear_unused_clients', ClearUnusedClientsCommand::class)
             ->args([
                 service(DoctrineUnusedClientFinder::class),
-                service(ClientManagerInterface::class),
+                null,
                 null,
             ])
             ->tag('console.command', ['command' => 'league:oauth2-server:clear-unused-clients'])

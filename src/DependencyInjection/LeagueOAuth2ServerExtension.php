@@ -519,7 +519,14 @@ final class LeagueOAuth2ServerExtension extends Extension implements PrependExte
 
         $container
             ->findDefinition(ClearUnusedClientsCommand::class)
-            ->replaceArgument(2, $config['authorization_server']['refresh_token_ttl'])
+            ->replaceArgument(1, $config['authorization_server']['refresh_token_ttl'])
+            ->replaceArgument(2, $config['authorization_server']['access_token_ttl'])
+        ;
+
+        $container
+            ->findDefinition(RecordClientUsageListener::class)
+            ->replaceArgument(0, $entityManager)
+            ->replaceArgument(1, $config['client']['classname'])
         ;
 
         $container->setParameter('league.oauth2_server.persistence.doctrine.enabled', true);
