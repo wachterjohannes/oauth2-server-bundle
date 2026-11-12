@@ -382,6 +382,17 @@ final class ExtensionTest extends TestCase
         $this->assertTrue($on->findDefinition('league.oauth2_server.persistence.driver')->getArgument(4));
     }
 
+    public function testTheRegistrationRefusesTheInMemoryPersistence(): void
+    {
+        $container = new ContainerBuilder();
+        $this->setupContainer($container);
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('persistence that survives a request');
+
+        (new LeagueOAuth2ServerExtension())->load($this->getValidConfiguration(['persistence' => ['in_memory' => 1], 'dynamic_client_registration' => ['enabled' => true]]), $container);
+    }
+
     public function testTheRegistrationNeedsADefaultScopeItAllows(): void
     {
         $container = new ContainerBuilder();
@@ -550,7 +561,7 @@ final class ExtensionTest extends TestCase
                 ],
                 // Pick one for valid config:
                 // 'persistence' => ['doctrine' => []]
-                'persistence' => $options['persistence'] ?? ['in_memory' => 1],
+                'persistence' => $options['persistence'] ?? (isset($options['dynamic_client_registration']) ? ['doctrine' => ['entity_manager' => 'default']] : ['in_memory' => 1]),
             ],
         ];
     }
