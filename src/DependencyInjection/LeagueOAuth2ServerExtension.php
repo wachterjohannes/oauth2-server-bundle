@@ -373,6 +373,7 @@ final class LeagueOAuth2ServerExtension extends Extension implements PrependExte
             ->replaceArgument(1, $config['authorization_server']['persist_access_token'])
             ->replaceArgument(2, $persistenceConfig['table_prefix'])
             ->replaceArgument(3, $config['authorization_server']['enable_device_code_grant'])
+            ->replaceArgument(4, $config['client']['identifier_length'])
         ;
 
         $container->setParameter('league.oauth2_server.persistence.doctrine.enabled', true);

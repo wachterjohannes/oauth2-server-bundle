@@ -6,6 +6,7 @@ namespace League\Bundle\OAuth2ServerBundle\Tests\Unit;
 
 use League\Bundle\OAuth2ServerBundle\DependencyInjection\LeagueOAuth2ServerExtension;
 use League\Bundle\OAuth2ServerBundle\Manager\InMemory\ScopeManager;
+use League\Bundle\OAuth2ServerBundle\Persistence\Mapping\Driver;
 use League\OAuth2\Server\AuthorizationServer;
 use League\OAuth2\Server\Grant\AuthCodeGrant;
 use League\OAuth2\Server\Grant\ClientCredentialsGrant;
@@ -14,6 +15,7 @@ use League\OAuth2\Server\Grant\PasswordGrant;
 use League\OAuth2\Server\Grant\RefreshTokenGrant;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 
 final class ExtensionTest extends TestCase
@@ -69,6 +71,53 @@ final class ExtensionTest extends TestCase
         yield 'Device code grant can be disabled' => [
             DeviceCodeGrant::class, 'enable_device_code_grant', false,
         ];
+    }
+
+    public function testTheClientIdentifierLengthReachesTheMappingDriver(): void
+    {
+        $container = new ContainerBuilder();
+        $this->setupContainer($container);
+
+        $config = $this->getValidConfiguration();
+        $config[0]['persistence'] = ['doctrine' => ['entity_manager' => 'default']];
+        $config[0]['client'] = ['identifier_length' => 100];
+
+        (new LeagueOAuth2ServerExtension())->load($config, $container);
+
+        $this->assertSame(100, $container->findDefinition(Driver::class)->getArgument(4));
+    }
+
+    public function testTheClientIdentifierLengthIs32ByDefault(): void
+    {
+        $container = new ContainerBuilder();
+        $this->setupContainer($container);
+
+        $config = $this->getValidConfiguration();
+        $config[0]['persistence'] = ['doctrine' => ['entity_manager' => 'default']];
+
+        (new LeagueOAuth2ServerExtension())->load($config, $container);
+
+        $this->assertSame(32, $container->findDefinition(Driver::class)->getArgument(4));
+    }
+
+    #[DataProvider('invalidIdentifierLengthProvider')]
+    public function testTheClientIdentifierLengthIsLimited(int $length): void
+    {
+        $container = new ContainerBuilder();
+        $this->setupContainer($container);
+
+        $config = $this->getValidConfiguration();
+        $config[0]['client'] = ['identifier_length' => $length];
+
+        $this->expectException(InvalidConfigurationException::class);
+
+        (new LeagueOAuth2ServerExtension())->load($config, $container);
+    }
+
+    public static function invalidIdentifierLengthProvider(): iterable
+    {
+        yield 'shorter than a generated identifier' => [31];
+        yield 'longer than the index allows' => [256];
     }
 
     public function testDeviceCodeGrantIsDisabledByDefault(): void
