@@ -45,6 +45,7 @@ The document is built from the configuration of the bundle.
 | `authorization_endpoint`                | The `oauth2_authorize` route, when the authorization code or the implicit grant is enabled.            |
 | `token_endpoint`                        | The `oauth2_token` route, when any grant other than the implicit grant is enabled.                     |
 | `device_authorization_endpoint`         | The `oauth2_device_code` route, when the device code grant is enabled.                                 |
+| `registration_endpoint`                 | The `oauth2_client_registration` route, when the [dynamic client registration](dynamic-client-registration.md) is enabled. |
 | `response_types_supported`              | `code` and `token`, following the authorization code and the implicit grant.                           |
 | `grant_types_supported`                 | The enabled grants.                                                                                    |
 | `code_challenge_methods_supported`      | `S256`, when the authorization code grant is enabled.                                                  |

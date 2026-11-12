@@ -102,7 +102,30 @@ For implementation into Symfony projects, please see [bundle documentation](basi
                 enabled:              false
 
                 # The issuer identifier: an https URL without query or fragment. Required when the metadata are enabled.
+                # It must be a literal: the route path is built from it when the container is compiled, so a parameter or an environment variable cannot be used.
                 issuer:               null # Example: https://auth.example.com
+
+            # Lets clients register themselves (RFC 7591).
+            # The route is opt-in as well: import "@LeagueOAuth2ServerBundle/config/routes_registration.php".
+            dynamic_client_registration:
+                enabled:              false
+
+                # A bearer token every registration request must carry. Without it, anyone who can reach the endpoint can register a client.
+                initial_access_token: null
+
+                # Service id of a Symfony rate limiter factory (symfony/rate-limiter), applied per client IP address.
+                rate_limiter:         null
+
+                # The grants a client may register for. They must be enabled grants.
+                grant_types:
+                    - authorization_code
+                    - refresh_token
+
+                # The scopes a client may register for. All available scopes when empty.
+                scopes:               []
+
+                # How many redirect URIs one client may register
+                max_redirect_uris:    10
 
         resource_server:      # Required
 
@@ -190,6 +213,7 @@ security:
 * [Password Grant Handling](password-grant-handling.md)
 * [Using custom persistence managers](using-custom-persistence-managers.md)
 * [Authorization server metadata](authorization-server-metadata.md)
+* [Dynamic client registration](dynamic-client-registration.md)
 
 ## Contributing
 

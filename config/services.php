@@ -15,6 +15,7 @@ use League\Bundle\OAuth2ServerBundle\Command\RehashClientSecretsCommand;
 use League\Bundle\OAuth2ServerBundle\Command\UpdateClientCommand;
 use League\Bundle\OAuth2ServerBundle\Controller\AuthorizationController;
 use League\Bundle\OAuth2ServerBundle\Controller\AuthorizationServerMetadataController;
+use League\Bundle\OAuth2ServerBundle\Controller\ClientRegistrationController;
 use League\Bundle\OAuth2ServerBundle\Controller\DeviceCodeController;
 use League\Bundle\OAuth2ServerBundle\Controller\TokenController;
 use League\Bundle\OAuth2ServerBundle\Converter\ScopeConverter;
@@ -31,6 +32,8 @@ use League\Bundle\OAuth2ServerBundle\Manager\InMemory\ScopeManager;
 use League\Bundle\OAuth2ServerBundle\Manager\RefreshTokenManagerInterface;
 use League\Bundle\OAuth2ServerBundle\Manager\ScopeManagerInterface;
 use League\Bundle\OAuth2ServerBundle\OAuth2Events;
+use League\Bundle\OAuth2ServerBundle\Registration\ClientRegistrar;
+use League\Bundle\OAuth2ServerBundle\Registration\RedirectUriPolicy;
 use League\Bundle\OAuth2ServerBundle\Repository\AuthCodeRepository;
 use League\Bundle\OAuth2ServerBundle\Repository\ClientRepository;
 use League\Bundle\OAuth2ServerBundle\Repository\DeviceCodeRepository;
@@ -258,6 +261,31 @@ return static function (ContainerConfigurator $container): void {
             ])
             ->tag('controller.service_arguments')
         ->alias(AuthorizationServerMetadataController::class, 'league.oauth2_server.controller.authorization_server_metadata')
+
+        // Dynamic client registration, its arguments are set by the extension
+        ->set(RedirectUriPolicy::class)
+
+        ->set(ClientRegistrar::class)
+            ->args([
+                service(ClientManagerInterface::class),
+                service('league.oauth2_server.password_hasher'),
+                service(RedirectUriPolicy::class),
+                null,
+                [],
+                [],
+                [],
+                10,
+            ])
+
+        ->set('league.oauth2_server.controller.client_registration', ClientRegistrationController::class)
+            ->args([
+                service(ClientRegistrar::class),
+                false,
+                null,
+                null,
+            ])
+            ->tag('controller.service_arguments')
+        ->alias(ClientRegistrationController::class, 'league.oauth2_server.controller.client_registration')
 
         // Token controller
         ->set('league.oauth2_server.controller.token', TokenController::class)
