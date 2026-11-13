@@ -23,6 +23,7 @@ use League\Bundle\OAuth2ServerBundle\Manager\Doctrine\RefreshTokenManager;
 use League\Bundle\OAuth2ServerBundle\Manager\InMemory\AccessTokenManager as InMemoryAccessTokenManager;
 use League\Bundle\OAuth2ServerBundle\Manager\RefreshTokenManagerInterface;
 use League\Bundle\OAuth2ServerBundle\Manager\ScopeManagerInterface;
+use League\Bundle\OAuth2ServerBundle\Model\Client;
 use League\Bundle\OAuth2ServerBundle\Persistence\Mapping\Driver;
 use League\Bundle\OAuth2ServerBundle\Security\Authenticator\OAuth2Authenticator;
 use League\Bundle\OAuth2ServerBundle\Service\CredentialsRevoker\DoctrineCredentialsRevoker;
@@ -367,13 +368,18 @@ final class LeagueOAuth2ServerExtension extends Extension implements PrependExte
             ->replaceArgument(3, $config['authorization_server']['enable_device_code_grant'])
         ;
 
+        // A custom client class declares its own identifier column
+        if (!$config['client']['allow_long_identifier'] && Client::class === $config['client']['classname']) {
+            trigger_deprecation('league/oauth2-server-bundle', '2.1', 'Not setting "league_oauth2_server.client.allow_long_identifier" to true is deprecated. The client identifier column will be 255 characters long in 3.0, which needs a database migration.');
+        }
+
         $container
             ->findDefinition(Driver::class)
             ->replaceArgument(0, $config['client']['classname'])
             ->replaceArgument(1, $config['authorization_server']['persist_access_token'])
             ->replaceArgument(2, $persistenceConfig['table_prefix'])
             ->replaceArgument(3, $config['authorization_server']['enable_device_code_grant'])
-            ->replaceArgument(4, $config['client']['identifier_length'])
+            ->replaceArgument(4, $config['client']['allow_long_identifier'])
         ;
 
         $container->setParameter('league.oauth2_server.persistence.doctrine.enabled', true);

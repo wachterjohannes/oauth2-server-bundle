@@ -6,6 +6,7 @@ namespace League\Bundle\OAuth2ServerBundle\Tests\Unit;
 
 use League\Bundle\OAuth2ServerBundle\DependencyInjection\LeagueOAuth2ServerExtension;
 use League\Bundle\OAuth2ServerBundle\Manager\InMemory\ScopeManager;
+use League\Bundle\OAuth2ServerBundle\Model\AbstractClient;
 use League\Bundle\OAuth2ServerBundle\Persistence\Mapping\Driver;
 use League\OAuth2\Server\AuthorizationServer;
 use League\OAuth2\Server\Grant\AuthCodeGrant;
@@ -14,8 +15,8 @@ use League\OAuth2\Server\Grant\DeviceCodeGrant;
 use League\OAuth2\Server\Grant\PasswordGrant;
 use League\OAuth2\Server\Grant\RefreshTokenGrant;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\IgnoreDeprecations;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 
 final class ExtensionTest extends TestCase
@@ -73,21 +74,22 @@ final class ExtensionTest extends TestCase
         ];
     }
 
-    public function testTheClientIdentifierLengthReachesTheMappingDriver(): void
+    public function testALongClientIdentifierReachesTheMappingDriver(): void
     {
         $container = new ContainerBuilder();
         $this->setupContainer($container);
 
         $config = $this->getValidConfiguration();
         $config[0]['persistence'] = ['doctrine' => ['entity_manager' => 'default']];
-        $config[0]['client'] = ['identifier_length' => 100];
+        $config[0]['client'] = ['allow_long_identifier' => true];
 
         (new LeagueOAuth2ServerExtension())->load($config, $container);
 
-        $this->assertSame(100, $container->findDefinition(Driver::class)->getArgument(4));
+        $this->assertTrue($container->findDefinition(Driver::class)->getArgument(4));
     }
 
-    public function testTheClientIdentifierLengthIs32ByDefault(): void
+    #[IgnoreDeprecations]
+    public function testNotAllowingALongClientIdentifierIsDeprecated(): void
     {
         $container = new ContainerBuilder();
         $this->setupContainer($container);
@@ -95,29 +97,26 @@ final class ExtensionTest extends TestCase
         $config = $this->getValidConfiguration();
         $config[0]['persistence'] = ['doctrine' => ['entity_manager' => 'default']];
 
+        $this->expectUserDeprecationMessage('Since league/oauth2-server-bundle 2.1: Not setting "league_oauth2_server.client.allow_long_identifier" to true is deprecated. The client identifier column will be 255 characters long in 3.0, which needs a database migration.');
+
         (new LeagueOAuth2ServerExtension())->load($config, $container);
 
-        $this->assertSame(32, $container->findDefinition(Driver::class)->getArgument(4));
+        $this->assertFalse($container->findDefinition(Driver::class)->getArgument(4));
     }
 
-    #[DataProvider('invalidIdentifierLengthProvider')]
-    public function testTheClientIdentifierLengthIsLimited(int $length): void
+    public function testACustomClientClassGetsNoDeprecationForTheIdentifier(): void
     {
         $container = new ContainerBuilder();
         $this->setupContainer($container);
 
         $config = $this->getValidConfiguration();
-        $config[0]['client'] = ['identifier_length' => $length];
-
-        $this->expectException(InvalidConfigurationException::class);
+        $config[0]['persistence'] = ['doctrine' => ['entity_manager' => 'default']];
+        $customClient = new class('custom', 'custom', null) extends AbstractClient {};
+        $config[0]['client'] = ['classname' => $customClient::class];
 
         (new LeagueOAuth2ServerExtension())->load($config, $container);
-    }
 
-    public static function invalidIdentifierLengthProvider(): iterable
-    {
-        yield 'shorter than a generated identifier' => [31];
-        yield 'longer than the index allows' => [256];
+        $this->addToAssertionCount(1);
     }
 
     public function testDeviceCodeGrantIsDisabledByDefault(): void

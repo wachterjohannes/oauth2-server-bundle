@@ -133,8 +133,8 @@ For implementation into Symfony projects, please see [bundle documentation](basi
             # Set a custom client class. Must be a League\Bundle\OAuth2ServerBundle\Model\Client
             classname:        League\Bundle\OAuth2ServerBundle\Model\Client
 
-            # Length of the client identifier column, between 32 and 255. See client-identifier-length.md.
-            identifier_length: 32
+            # Make the client identifier column 255 instead of 32 characters long. See client-identifier-length.md.
+            allow_long_identifier: false
     ```
 
 1. Enable the bundle in `config/bundles.php` by adding it to the array:

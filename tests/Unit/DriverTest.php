@@ -24,9 +24,9 @@ final class DriverTest extends TestCase
         $this->assertSame(32, $this->identifierLength(new Driver(Client::class, true, 'oauth2_', false)));
     }
 
-    public function testTheClientIdentifierLengthIsConfigurable(): void
+    public function testTheClientIdentifierCanBeLong(): void
     {
-        $this->assertSame(255, $this->identifierLength(new Driver(Client::class, true, 'oauth2_', false, 255)));
+        $this->assertSame(255, $this->identifierLength(new Driver(Client::class, true, 'oauth2_', false, true)));
     }
 
     private function identifierLength(Driver $driver): int
