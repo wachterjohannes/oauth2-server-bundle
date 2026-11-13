@@ -6,7 +6,6 @@ namespace League\Bundle\OAuth2ServerBundle\Tests\Unit;
 
 use League\Bundle\OAuth2ServerBundle\DependencyInjection\LeagueOAuth2ServerExtension;
 use League\Bundle\OAuth2ServerBundle\Manager\InMemory\ScopeManager;
-use League\Bundle\OAuth2ServerBundle\Model\AbstractClient;
 use League\Bundle\OAuth2ServerBundle\Persistence\Mapping\Driver;
 use League\OAuth2\Server\AuthorizationServer;
 use League\OAuth2\Server\Grant\AuthCodeGrant;
@@ -15,7 +14,7 @@ use League\OAuth2\Server\Grant\DeviceCodeGrant;
 use League\OAuth2\Server\Grant\PasswordGrant;
 use League\OAuth2\Server\Grant\RefreshTokenGrant;
 use PHPUnit\Framework\Attributes\DataProvider;
-use PHPUnit\Framework\Attributes\IgnoreDeprecations;
+use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 
@@ -88,7 +87,7 @@ final class ExtensionTest extends TestCase
         $this->assertTrue($container->findDefinition(Driver::class)->getArgument(4));
     }
 
-    #[IgnoreDeprecations]
+    #[Group('legacy')]
     public function testNotAllowingALongClientIdentifierIsDeprecated(): void
     {
         $container = new ContainerBuilder();
@@ -97,26 +96,11 @@ final class ExtensionTest extends TestCase
         $config = $this->getValidConfiguration();
         $config[0]['persistence'] = ['doctrine' => ['entity_manager' => 'default']];
 
-        $this->expectUserDeprecationMessage('Since league/oauth2-server-bundle 2.1: Not setting "league_oauth2_server.client.allow_long_identifier" to true is deprecated. The client identifier column will be 255 characters long in 3.0, which needs a database migration.');
+        $this->expectUserDeprecationMessage('Since league/oauth2-server-bundle 2.1: Not setting "league_oauth2_server.client.allow_long_identifier" to "true" is deprecated. Changing this option to "true" requires a database migration when a custom client class is not used.');
 
         (new LeagueOAuth2ServerExtension())->load($config, $container);
 
         $this->assertFalse($container->findDefinition(Driver::class)->getArgument(4));
-    }
-
-    public function testACustomClientClassGetsNoDeprecationForTheIdentifier(): void
-    {
-        $container = new ContainerBuilder();
-        $this->setupContainer($container);
-
-        $config = $this->getValidConfiguration();
-        $config[0]['persistence'] = ['doctrine' => ['entity_manager' => 'default']];
-        $customClient = new class('custom', 'custom', null) extends AbstractClient {};
-        $config[0]['client'] = ['classname' => $customClient::class];
-
-        (new LeagueOAuth2ServerExtension())->load($config, $container);
-
-        $this->addToAssertionCount(1);
     }
 
     public function testDeviceCodeGrantIsDisabledByDefault(): void

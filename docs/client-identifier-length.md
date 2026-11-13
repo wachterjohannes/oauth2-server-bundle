@@ -19,4 +19,4 @@ php bin/console doctrine:migrations:migrate
 
 Not setting the option to `true` is deprecated. The column will be 255 characters long in 3.0, and the migration is mandatory then.
 
-The option applies to the default client class. A [custom client class](using-custom-client.md) declares its identifier column itself, so change `length` there. It gets no deprecation notice.
+The option applies to the default client class. A [custom client class](using-custom-client.md) declares its identifier column itself, so change `length` there.

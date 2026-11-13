@@ -306,7 +306,7 @@ final class Configuration implements ConfigurationInterface
                     ->end()
                 ->end()
                 ->booleanNode('allow_long_identifier')
-                    ->info('Make the client identifier column 255 instead of 32 characters long. Needs a database migration, and will be the only behaviour in 3.0.')
+                    ->info('Make the client identifier column 255 instead of 32 characters long. Changing this option to "true" requires a database migration when a custom client class is not used.')
                     ->defaultFalse()
                 ->end()
                 ->booleanNode('allow_plaintext_secrets')
