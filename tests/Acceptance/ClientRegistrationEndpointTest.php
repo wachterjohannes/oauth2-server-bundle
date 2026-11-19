@@ -38,6 +38,8 @@ final class ClientRegistrationEndpointTest extends AbstractAcceptanceTestCase
         $this->assertTrue($client->isActive());
         $this->assertSame(['https://example.com/callback', 'http://127.0.0.1:8080/callback', 'com.example.app:/oauth'], array_map(strval(...), $client->getRedirectUris()));
         $this->assertSame(['authorization_code', 'refresh_token'], array_map(strval(...), $client->getGrants()));
+        $this->assertSame($registered['client_id_issued_at'], $client->getRegisteredAt()?->getTimestamp());
+        $this->assertNull($client->getLastUsedAt());
     }
 
     public function testAConfidentialClientGetsASecretThatIsStoredHashed(): void
