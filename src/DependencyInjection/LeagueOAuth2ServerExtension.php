@@ -9,6 +9,7 @@ use League\Bundle\OAuth2ServerBundle\Command\ClearExpiredTokensCommand;
 use League\Bundle\OAuth2ServerBundle\Command\CreateClientCommand;
 use League\Bundle\OAuth2ServerBundle\Command\GenerateKeyPairCommand;
 use League\Bundle\OAuth2ServerBundle\Controller\AuthorizationServerMetadataController;
+use League\Bundle\OAuth2ServerBundle\Controller\ClientRegistrationController;
 use League\Bundle\OAuth2ServerBundle\DBAL\Type\Grant as GrantType;
 use League\Bundle\OAuth2ServerBundle\DBAL\Type\RedirectUri as RedirectUriType;
 use League\Bundle\OAuth2ServerBundle\DBAL\Type\Scope as ScopeType;
@@ -26,6 +27,7 @@ use League\Bundle\OAuth2ServerBundle\Manager\RefreshTokenManagerInterface;
 use League\Bundle\OAuth2ServerBundle\Manager\ScopeManagerInterface;
 use League\Bundle\OAuth2ServerBundle\OAuth2Grants;
 use League\Bundle\OAuth2ServerBundle\Persistence\Mapping\Driver;
+use League\Bundle\OAuth2ServerBundle\Registration\ClientRegistrar;
 use League\Bundle\OAuth2ServerBundle\Security\Authenticator\OAuth2Authenticator;
 use League\Bundle\OAuth2ServerBundle\Service\CredentialsRevoker\DoctrineCredentialsRevoker;
 use League\Bundle\OAuth2ServerBundle\Service\CredentialsRevokerInterface;
@@ -67,6 +69,7 @@ final class LeagueOAuth2ServerExtension extends Extension implements PrependExte
         $this->configurePersistence($loader, $container, $config);
         $this->configureAuthorizationServer($container, $config['authorization_server']);
         $this->configureMetadata($loader, $container, $config['authorization_server'], $config['scopes']['available']);
+        $this->configureClientRegistration($loader, $container, $config['authorization_server'], $config['scopes'], $config['client']['classname'], $this->getPersistenceMethod($config));
         $this->configureResourceServer($container, $config['resource_server']);
         $this->configureScopes($container, $config['scopes']);
 
@@ -121,8 +124,8 @@ final class LeagueOAuth2ServerExtension extends Extension implements PrependExte
     {
         $this->assertRequiredBundlesAreEnabled($container);
 
-        if ($container->hasDefinition('league.oauth2_server.controller.authorization_server_metadata') && !$container->has('router')) {
-            throw new \LogicException('The authorization server metadata need the router. Enable the routing, or disable "league_oauth2_server.authorization_server.metadata".');
+        if (!$container->has('router') && ($container->hasDefinition('league.oauth2_server.controller.authorization_server_metadata') || $container->hasDefinition('league.oauth2_server.controller.client_registration'))) {
+            throw new \LogicException('The authorization server metadata and the dynamic client registration need the router. Enable the routing, or disable them in "league_oauth2_server.authorization_server".');
         }
     }
 
@@ -207,12 +210,71 @@ final class LeagueOAuth2ServerExtension extends Extension implements PrependExte
             'authorization_endpoint' => $authorizationEndpoint ? 'oauth2_authorize' : null,
             'token_endpoint' => $tokenEndpoint ? 'oauth2_token' : null,
             'device_authorization_endpoint' => $config['enable_device_code_grant'] ? 'oauth2_device_code' : null,
+            'registration_endpoint' => $config['dynamic_client_registration']['enabled'] ? 'oauth2_client_registration' : null,
         ]);
 
         $container->findDefinition(AuthorizationServerMetadataController::class)
             ->replaceArgument(2, $config['metadata']['issuer'])
             ->replaceArgument(3, $metadata)
             ->replaceArgument(4, $endpoints)
+        ;
+    }
+
+    /**
+     * @param mixed[] $config
+     * @param mixed[] $scopes
+     * @param class-string $clientClass
+     */
+    private function configureClientRegistration(LoaderInterface $loader, ContainerBuilder $container, array $config, array $scopes, string $clientClass, ?string $persistenceMethod): void
+    {
+        $registration = $config['dynamic_client_registration'];
+
+        if (!$registration['enabled']) {
+            return;
+        }
+
+        // The registered clients would be gone with the next request
+        if ('in_memory' === $persistenceMethod) {
+            throw new \LogicException('The dynamic client registration needs a persistence that survives a request. Configure "league_oauth2_server.persistence.doctrine" or a custom persistence.');
+        }
+
+        $enabledGrants = array_keys(array_filter([
+            OAuth2Grants::AUTHORIZATION_CODE => $config['enable_auth_code_grant'],
+            OAuth2Grants::CLIENT_CREDENTIALS => $config['enable_client_credentials_grant'],
+            OAuth2Grants::REFRESH_TOKEN => $config['enable_refresh_token_grant'],
+            OAuth2Grants::DEVICE_CODE => $config['enable_device_code_grant'],
+        ]));
+
+        $allowedScopes = [] === $registration['scopes'] ? $scopes['available'] : $registration['scopes'];
+
+        if ([] !== $disabledGrants = array_diff($registration['grant_types'], $enabledGrants)) {
+            throw new \LogicException(\sprintf('Invalid grant types "%s" for path "league_oauth2_server.authorization_server.dynamic_client_registration.grant_types". The grants are not enabled. Permissible values: "%s"', implode('", "', $disabledGrants), implode('", "', $enabledGrants)));
+        }
+
+        if ([] !== $unknownScopes = array_diff($allowedScopes, $scopes['available'])) {
+            throw new \LogicException(\sprintf('Invalid scopes "%s" for path "league_oauth2_server.authorization_server.dynamic_client_registration.scopes". Permissible values: "%s"', implode('", "', $unknownScopes), implode('", "', $scopes['available'])));
+        }
+
+        $defaultScopes = array_values(array_intersect($scopes['default'], $allowedScopes));
+
+        // Otherwise a client that asks for no scope would get every scope it may ask for
+        if ([] === $defaultScopes) {
+            throw new \LogicException('None of the default scopes of "league_oauth2_server.scopes.default" is allowed by "league_oauth2_server.authorization_server.dynamic_client_registration.scopes". Allow at least one of them.');
+        }
+
+        $loader->load('registration.php');
+
+        $container->findDefinition(ClientRegistrar::class)
+            ->replaceArgument(3, $clientClass)
+            ->replaceArgument(4, array_values($registration['grant_types']))
+            ->replaceArgument(5, array_values($allowedScopes))
+            ->replaceArgument(6, $defaultScopes)
+            ->replaceArgument(7, $registration['max_redirect_uris'])
+        ;
+
+        $container->findDefinition(ClientRegistrationController::class)
+            ->replaceArgument(1, $registration['initial_access_token'])
+            ->replaceArgument(2, null !== $registration['rate_limiter'] ? new Reference($registration['rate_limiter']) : null)
         ;
     }
 
