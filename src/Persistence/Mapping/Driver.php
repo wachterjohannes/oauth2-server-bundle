@@ -27,6 +27,7 @@ class Driver implements MappingDriver
         private readonly bool $persistAccessToken,
         private readonly string $tablePrefix = 'oauth2_',
         private readonly bool $enableDeviceCodeGrant = true,
+        private readonly bool $trackClientRegistration = false,
     ) {
     }
 
@@ -90,7 +91,7 @@ class Driver implements MappingDriver
      */
     private function buildAbstractClientMetadata(ORMClassMetadata $metadata): void
     {
-        (new ClassMetadataBuilder($metadata))
+        $builder = (new ClassMetadataBuilder($metadata))
             ->setMappedSuperClass()
             ->createField('name', 'string')->length(128)->build()
             ->createField('secret', 'string')->length(128)->nullable(true)->build()
@@ -100,6 +101,14 @@ class Driver implements MappingDriver
             ->addField('active', 'boolean')
             ->createField('allowPlainTextPkce', 'boolean')->option('default', 0)->build()
         ;
+
+        // Only an application that lets clients register itself needs the columns, so nobody else has to migrate
+        if ($this->trackClientRegistration) {
+            $builder
+                ->createField('registeredAt', 'datetime_immutable')->nullable(true)->build()
+                ->createField('lastUsedAt', 'datetime_immutable')->nullable(true)->build()
+            ;
+        }
     }
 
     /**

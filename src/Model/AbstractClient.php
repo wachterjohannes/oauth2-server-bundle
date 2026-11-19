@@ -25,6 +25,12 @@ abstract class AbstractClient implements ClientInterface
     private bool $active = true;
     private bool $allowPlainTextPkce = false;
 
+    /** when the client registered itself, null for a client that was created otherwise */
+    private ?\DateTimeImmutable $registeredAt = null;
+
+    /** when the client last got an access token, tracked for registered clients only */
+    private ?\DateTimeImmutable $lastUsedAt = null;
+
     /**
      * @param non-empty-string $identifier
      */
@@ -132,6 +138,30 @@ abstract class AbstractClient implements ClientInterface
     public function setAllowPlainTextPkce(bool $allowPlainTextPkce): ClientInterface
     {
         $this->allowPlainTextPkce = $allowPlainTextPkce;
+
+        return $this;
+    }
+
+    public function getRegisteredAt(): ?\DateTimeImmutable
+    {
+        return $this->registeredAt;
+    }
+
+    public function setRegisteredAt(?\DateTimeImmutable $registeredAt): static
+    {
+        $this->registeredAt = $registeredAt;
+
+        return $this;
+    }
+
+    public function getLastUsedAt(): ?\DateTimeImmutable
+    {
+        return $this->lastUsedAt;
+    }
+
+    public function setLastUsedAt(?\DateTimeImmutable $lastUsedAt): static
+    {
+        $this->lastUsedAt = $lastUsedAt;
 
         return $this;
     }
